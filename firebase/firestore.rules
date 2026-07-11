@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function squadMember(squadId) {
+      return signedIn() && request.auth.uid in get(/databases/$(database)/documents/squads/$(squadId)).data.memberUids;
+    }
+
+    match /profiles/{uid} {
+      allow read, create, update, delete: if signedIn() && request.auth.uid == uid;
+    }
+    match /squads/{squadId} {
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid && request.auth.uid in request.resource.data.memberUids;
+      allow read: if squadMember(squadId);
+      allow update: if squadMember(squadId)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'name']);
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      match /reactions/{reactionId} {
+        allow read: if squadMember(squadId);
+        allow create, update, delete: if squadMember(squadId) && request.resource.data.uid == request.auth.uid;
+      }
+    }
+    match /dailySeeds/{date} { allow read: if true; allow write: if false; }
+    match /scoreSubmissions/{runId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && squadMember(request.resource.data.squadId)
+        && request.resource.data.score is int
+        && request.resource.data.score >= 0 && request.resource.data.score <= 100
+        && request.resource.data.status == 'pending';
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+    match /leaderboards/{boardId}/entries/{uid} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /challengeProgress/{id} {
+      allow read, write: if signedIn() && request.resource.data.uid == request.auth.uid;
+    }
+  }
+}

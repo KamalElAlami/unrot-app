@@ -1,0 +1,7 @@
+{
+  "indexes": [
+    {"collectionGroup":"scoreSubmissions","queryScope":"COLLECTION","fields":[{"fieldPath":"squadId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
+    {"collectionGroup":"leaderboards","queryScope":"COLLECTION","fields":[{"fieldPath":"date","order":"DESCENDING"},{"fieldPath":"score","order":"DESCENDING"},{"fieldPath":"mistakes","order":"ASCENDING"},{"fieldPath":"durationMs","order":"ASCENDING"}]}
+  ],
+  "fieldOverrides": []
+}
