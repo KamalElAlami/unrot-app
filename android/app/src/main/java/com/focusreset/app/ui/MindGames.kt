@@ -24,7 +24,7 @@ fun GameRunScreen(state: AppUiState, onComplete: (GameResult) -> Unit) {
     val game = state.seed.games[state.gameIndex]
     Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(if (state.practice) "PRACTICE" else "DAILY FOCUS RUN", color = Mint, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 12.sp)
+            Text(if (state.recoveryRun) "RESET ROUND" else if (state.practice) "PRACTICE" else "DAILY FOCUS RUN", color = Mint, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, fontSize = 12.sp)
             Text("${state.gameIndex + 1} / ${state.seed.games.size}", color = Slate)
         }
         LinearProgressIndicator(progress = { (state.gameIndex + .2f) / state.seed.games.size }, modifier = Modifier.fillMaxWidth(), color = Mint, trackColor = Color(0xFFE2EAE7))
@@ -59,7 +59,7 @@ fun GameRunScreen(state: AppUiState, onComplete: (GameResult) -> Unit) {
     fun answer(index: Int) {
         times += System.currentTimeMillis() - shownAt
         if (index == data.second) correct++ else wrong++
-        if (round == 7) done(GameResult(GameType.COLOR_CLASH, correct + if (index == data.second) 1 else 0, wrong + if (index != data.second) 1 else 0, 0, times.sum(), times.toList()))
+        if (round == 7) done(GameResult(GameType.COLOR_CLASH, correct, wrong, 0, times.sum(), times.toList()))
         else { round++; shownAt = System.currentTimeMillis() }
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -123,7 +123,7 @@ fun GameRunScreen(state: AppUiState, onComplete: (GameResult) -> Unit) {
     }
     fun next(hit: Boolean) {
         if (hit) { correct++; times += System.currentTimeMillis() - signalAt } else premature++
-        if (round == 5) done(GameResult(GameType.SIGNAL_WATCH, correct + if (hit) 1 else 0, premature + if (!hit) 1 else 0, 0, System.currentTimeMillis() - started, times.toList())) else round++
+        if (round == 5) done(GameResult(GameType.SIGNAL_WATCH, correct, premature, 0, System.currentTimeMillis() - started, times.toList())) else round++
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(28.dp)) {
         Text("Wait for the signal. Early taps count as mistakes.", textAlign = TextAlign.Center, color = Slate)
@@ -146,7 +146,7 @@ fun GameRunScreen(state: AppUiState, onComplete: (GameResult) -> Unit) {
     val expectedLeft = if (byColor) green else circle
     fun answer(left: Boolean) {
         if (left == expectedLeft) correct++ else wrong++
-        if (round == 7) done(GameResult(GameType.RULE_SHIFT, correct + if (left == expectedLeft) 1 else 0, wrong + if (left != expectedLeft) 1 else 0, 0, System.currentTimeMillis() - started)) else round++
+        if (round == 7) done(GameResult(GameType.RULE_SHIFT, correct, wrong, 0, System.currentTimeMillis() - started)) else round++
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Text(if (byColor) "RULE: GREEN goes LEFT" else "RULE: CIRCLE goes LEFT", fontWeight = FontWeight.Bold, color = Mint)
@@ -184,7 +184,7 @@ fun GameRunScreen(state: AppUiState, onComplete: (GameResult) -> Unit) {
 fun ResultScreen(state: AppUiState, home: () -> Unit, share: (String) -> Unit) {
     val score = state.latestScore ?: return
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text(if (state.practice) "PRACTICE COMPLETE" else "TODAY’S CLARITY SCORE", color = Mint, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+        Text(if (state.recoveryRun) "RECOVERY DAY SAVED" else if (state.practice) "PRACTICE COMPLETE" else "TODAY’S CLARITY SCORE", color = Mint, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Spacer(Modifier.height(18.dp))
         Text(score.total.toString(), fontSize = 84.sp, fontWeight = FontWeight.Black, color = Ink)
         Text("out of 100", color = Slate)
@@ -195,7 +195,9 @@ fun ResultScreen(state: AppUiState, home: () -> Unit, share: (String) -> Unit) {
         Spacer(Modifier.height(32.dp))
         Card(colors = CardDefaults.cardColors(containerColor = SoftMint)) { Text("You’re done. Leave your phone better than you found it.", Modifier.padding(18.dp), textAlign = TextAlign.Center, color = Ink) }
         Spacer(Modifier.height(22.dp))
-        Button(onClick = { share("My Focus Reset Clarity Score is ${score.total}. Can your focus survive five minutes? https://focusreset.example/challenge/daily") }, modifier = Modifier.fillMaxWidth()) { Text("Challenge a friend") }
+        if (!state.recoveryRun) {
+            Button(onClick = { share("My Focus Reset Clarity Score is ${score.total}. Can your focus survive five minutes? https://focusreset.example/challenge/daily") }, modifier = Modifier.fillMaxWidth()) { Text("Challenge a friend") }
+        }
         TextButton(onClick = home) { Text("Return home") }
     }
 }

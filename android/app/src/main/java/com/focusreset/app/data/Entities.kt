@@ -26,6 +26,8 @@ interface FocusDao {
     @Query("SELECT COALESCE(SUM(durationMs), 0) FROM focus_runs WHERE epochDay = :epochDay AND practice = 1") suspend fun practiceDuration(epochDay: Long): Long
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun saveProgress(progress: ChallengeProgressEntity)
     @Query("SELECT * FROM challenge_progress WHERE programId = :programId ORDER BY day") fun observeProgress(programId: String): kotlinx.coroutines.flow.Flow<List<ChallengeProgressEntity>>
+    @Query("SELECT * FROM challenge_progress WHERE programId = :programId ORDER BY day") suspend fun progressForProgram(programId: String): List<ChallengeProgressEntity>
+    @Query("SELECT * FROM challenge_progress WHERE programId = :programId AND day = :day LIMIT 1") suspend fun progress(programId: String, day: Int): ChallengeProgressEntity?
 }
 
 @Database(entities = [FocusRunEntity::class, ChallengeProgressEntity::class], version = 1, exportSchema = true)

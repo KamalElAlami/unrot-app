@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.focusreset.app.ui.*
 
@@ -19,6 +21,7 @@ class MainActivity : ComponentActivity() {
             FocusResetTheme {
                 val model: AppViewModel = viewModel()
                 val state by model.state.collectAsState()
+                LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { model.refresh() }
                 FocusResetApp(
                     state = state,
                     model = model,
@@ -29,5 +32,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() { super.onResume() }
 }

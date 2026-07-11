@@ -20,11 +20,18 @@ import com.focusreset.app.domain.*
 
 @Composable
 fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () -> Unit, share: (String) -> Unit) {
+    if (!state.initialized) {
+        Box(Modifier.fillMaxSize().background(Paper), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Mint)
+        }
+        return
+    }
     Scaffold(
-        bottomBar = { if (state.screen !in listOf(Screen.RUN, Screen.RESULT)) BottomNav(state.screen, model::navigate) }
+        bottomBar = { if (state.screen !in listOf(Screen.ONBOARDING, Screen.RUN, Screen.RESULT)) BottomNav(state.screen, model::navigate) }
     ) { padding ->
         Box(Modifier.fillMaxSize().background(Paper).padding(padding)) {
             when (state.screen) {
+                Screen.ONBOARDING -> OnboardingScreen(model::completeOnboarding, openUsageAccess)
                 Screen.HOME -> HomeScreen(state, model)
                 Screen.PROGRAM -> ProgramScreen(state, model)
                 Screen.RUN -> GameRunScreen(state, model::finishGame)
@@ -33,6 +40,42 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
                 Screen.SQUADS -> SquadsScreen(share)
                 Screen.SETTINGS -> SettingsScreen(state, model, openUsageAccess)
             }
+        }
+    }
+}
+
+@Composable private fun OnboardingScreen(continueSolo: () -> Unit, openUsageAccess: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(26.dp),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(22.dp)) {
+            Spacer(Modifier.height(24.dp))
+            Text("FOCUS RESET", color = Mint, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("Less scrolling. One finite focus ritual.", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+            Text("Take a 7-day short-video reset and finish one five-minute mind-game run each day.", color = Slate, style = MaterialTheme.typography.bodyLarge)
+            listOf(
+                "No account needed for solo play",
+                "Usage access is optional and stays on your device",
+                "Scores describe game performance only"
+            ).forEach { item ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.CheckCircle, null, tint = Mint)
+                    Spacer(Modifier.width(12.dp))
+                    Text(item, color = Ink)
+                }
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = SoftMint), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Optional measurement", fontWeight = FontWeight.Bold)
+                    Text("Android can report total time in selected apps. It cannot distinguish Reels from normal Instagram use.", color = Slate)
+                    TextButton(onClick = openUsageAccess) { Text("Review usage access") }
+                }
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = continueSolo, modifier = Modifier.fillMaxWidth()) { Text("Continue without an account") }
+            Text("For ages 13+. Focus Reset does not diagnose, treat, or heal any condition.", color = Slate, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -61,6 +104,23 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
 @Composable private fun HomeScreen(state: AppUiState, model: AppViewModel) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         PageHeader("Today’s reset", "Make five minutes count.", "One finite run. No feed. No medical promises.")
+        state.activeProgram?.let { program ->
+            Card(colors = CardDefaults.cardColors(containerColor = SoftMint), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(program.title, fontWeight = FontWeight.Bold)
+                        Text("Day ${state.challengeDay}/${program.length.days}", color = Mint, fontWeight = FontWeight.Bold)
+                    }
+                    LinearProgressIndicator(
+                        progress = { state.completedChallengeDays.toFloat() / program.length.days },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Mint,
+                        trackColor = Color.White
+                    )
+                    Text("${state.completedChallengeDays} completed days · ${state.challengeStreak}-day streak", color = Slate)
+                }
+            }
+        }
         Card(colors = CardDefaults.cardColors(containerColor = Ink), shape = RoundedCornerShape(24.dp)) {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(if (state.dailyCompleted) "Daily Focus Run complete" else "Daily Focus Run", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -69,6 +129,26 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
                     Text(if (state.dailyCompleted) "Completed" else "Start today’s run")
                 }
             }
+        }
+        if (state.activeProgram != null && state.dailyCompleted && state.currentDayOutcome == DayOutcome.PENDING) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Daily check-in", fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                    Text("Did you stay inside today's selected-app target?", color = Slate)
+                    if (state.recoveryRequired) {
+                        Text("A missed target does not erase your progress. Complete one short Reset Round to record a recovery day.", color = Slate)
+                        Button(onClick = model::startRecovery, modifier = Modifier.fillMaxWidth()) { Text("Start Reset Round") }
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(onClick = { model.submitCheckIn(true) }, modifier = Modifier.weight(1f)) { Text("Yes") }
+                            OutlinedButton(onClick = { model.submitCheckIn(false) }, modifier = Modifier.weight(1f)) { Text("Not today") }
+                        }
+                    }
+                }
+            }
+        } else if (state.currentDayOutcome != DayOutcome.PENDING) {
+            val label = if (state.currentDayOutcome == DayOutcome.PERFECT) "Perfect day recorded" else "Recovery day recorded"
+            AssistChip(onClick = {}, label = { Text(label) }, leadingIcon = { Icon(Icons.Outlined.CheckCircle, null) })
         }
         if (state.usageAccess) MetricCard("Selected-app time", "${state.selectedUsageMinutes} min", "Stored on this device")
         else Card(colors = CardDefaults.cardColors(containerColor = SoftMint)) { Text("Usage tracking is optional. Enable it in Settings or continue with honest check-ins.", Modifier.padding(18.dp), color = Ink) }
@@ -101,8 +181,8 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
             ListItem(headlineContent = { Text(day.title, fontWeight = FontWeight.SemiBold) }, supportingContent = { Text(day.instruction) }, leadingContent = { Icon(Icons.Outlined.RadioButtonUnchecked, null, tint = Mint) }, colors = ListItemDefaults.colors(containerColor = Color.Transparent))
         }
         if (program.length.days > 7) Text("+ ${program.length.days - 7} more structured days", color = Slate)
-        Button(onClick = { model.startRun(false) }, enabled = program.entitlement == Entitlement.FREE && !state.dailyCompleted, modifier = Modifier.fillMaxWidth()) {
-            Text(if (program.entitlement == Entitlement.PREMIUM) "Unlock premium program" else "Begin with today’s Focus Run")
+        Button(onClick = model::activateSelectedProgram, enabled = program.entitlement == Entitlement.FREE && state.activeProgram?.id != program.id, modifier = Modifier.fillMaxWidth()) {
+            Text(if (program.entitlement == Entitlement.PREMIUM) "Unlock premium program" else if (state.activeProgram?.id == program.id) "Program active" else "Start this challenge")
         }
     }
 }
@@ -113,7 +193,7 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
         PageHeader("Practice lab", "Train deliberately.", "Practice is capped at 15 minutes daily so the cure never becomes another feed.")
         MetricCard("Time remaining", "$remaining min", "Resets tomorrow")
         GameType.entries.forEach { type ->
-            Card(onClick = { model.startRun(true) }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
+            Card(onClick = { model.startPractice(type) }, colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Extension, null, tint = Mint); Spacer(Modifier.width(14.dp))
                     Column { Text(type.label(), fontWeight = FontWeight.Bold); Text(type.skill(), color = Slate) }
