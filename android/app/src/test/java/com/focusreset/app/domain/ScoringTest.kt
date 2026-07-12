@@ -10,13 +10,13 @@ class ScoringTest {
     }
 
     @Test fun perfectConsistentResultsProducePerfectScore() {
-        val result = GameResult(GameType.COLOR_CLASH, 8, 0, 0, 2_400, listOf(300, 300, 300, 300))
+        val result = GameResult(GameType.GHOST_GRID, 8, 0, 0, 2_400, listOf(300, 300, 300, 300))
         assertEquals(ClarityScore(100, 100, 100, 100), Scoring.clarity(listOf(result)))
     }
 
     @Test fun mistakesAndMissesReduceTheScore() {
-        val clean = GameResult(GameType.COLOR_CLASH, 8, 0, 0, 2_400, listOf(300, 300, 300))
-        val noisy = GameResult(GameType.COLOR_CLASH, 4, 2, 2, 3_000, listOf(200, 500, 900))
+        val clean = GameResult(GameType.GHOST_GRID, 8, 0, 0, 2_400, listOf(300, 300, 300))
+        val noisy = GameResult(GameType.GHOST_GRID, 4, 2, 2, 3_000, listOf(200, 500, 900))
         assertTrue(Scoring.clarity(listOf(clean)).total > Scoring.clarity(listOf(noisy)).total)
     }
 

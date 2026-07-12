@@ -16,7 +16,7 @@ data class FocusRunEntity(
 )
 
 @Entity(tableName = "challenge_progress", primaryKeys = ["programId", "day"])
-data class ChallengeProgressEntity(val programId: String, val day: Int, val outcome: String, val completedAt: Long?)
+data class ChallengeProgressEntity(val programId: String, val day: Int, val outcome: String, val completedAt: Long?, val note: String? = null)
 
 @Dao
 interface FocusDao {
@@ -28,12 +28,23 @@ interface FocusDao {
     @Query("SELECT * FROM challenge_progress WHERE programId = :programId ORDER BY day") fun observeProgress(programId: String): kotlinx.coroutines.flow.Flow<List<ChallengeProgressEntity>>
     @Query("SELECT * FROM challenge_progress WHERE programId = :programId ORDER BY day") suspend fun progressForProgram(programId: String): List<ChallengeProgressEntity>
     @Query("SELECT * FROM challenge_progress WHERE programId = :programId AND day = :day LIMIT 1") suspend fun progress(programId: String, day: Int): ChallengeProgressEntity?
+    @Query("DELETE FROM challenge_progress WHERE programId = :programId") suspend fun clearProgress(programId: String)
+    @Query("UPDATE challenge_progress SET note = :note WHERE programId = :programId AND day = :day") suspend fun updateNote(programId: String, day: Int, note: String?)
+    @Query("DELETE FROM focus_runs") suspend fun clearRuns()
+    @Query("DELETE FROM challenge_progress") suspend fun clearAllProgress()
 }
 
-@Database(entities = [FocusRunEntity::class, ChallengeProgressEntity::class], version = 1, exportSchema = true)
+@Database(entities = [FocusRunEntity::class, ChallengeProgressEntity::class], version = 2, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun focusDao(): FocusDao
     companion object {
-        fun create(context: android.content.Context): AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "focus-reset.db").build()
+        private val migration1To2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE challenge_progress ADD COLUMN note TEXT")
+            }
+        }
+        fun create(context: android.content.Context): AppDatabase = Room.databaseBuilder(context, AppDatabase::class.java, "focus-reset.db")
+            .addMigrations(migration1To2)
+            .build()
     }
 }

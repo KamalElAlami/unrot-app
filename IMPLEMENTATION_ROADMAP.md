@@ -7,22 +7,35 @@
 - [x] Optional Android Usage Access entry point
 - [x] Free 7-day challenge enrollment and local persistence
 - [x] One scored Daily Focus Run containing three seeded games
-- [x] Five playable mind-game prototypes
+- [x] Five Braincup-derived finite games with adapted Focus Reset UI and scoring
 - [x] Clarity Score and deterministic leaderboard ordering
 - [x] Perfect-day check-in and recovery-day Reset Round
+- [x] Challenge-first dark dashboard with seven-day check-in history
+- [x] Daily No-Reels check-in independent from optional mind-game play
+- [x] Ghost Grid, Flash Crowd, Path Finder, Schulte Table, and Digit Memory
+- [x] Apache 2.0 attribution and bundled Braincup license
 - [x] Local Room history plus DataStore settings/challenge state
 - [x] Daily practice cap
 - [x] Core deterministic unit tests
-- [ ] Compile and run on an Android emulator/device
+- [x] Explicit Android system-back navigation with route tests
+- [x] Compile the debug APK and run Android unit tests
+- [x] Install and usability-test the APK on a physical Android device
 - [ ] Add Compose UI tests for the complete milestone flow
 
 ## Milestone 2 — Product-quality challenge experience
 
-- [ ] Improve game timing, difficulty curves, pause/background handling, and accessibility
+- [x] Add finite-game introductions and explain each game’s difficulty progression
+- [x] Protect active rounds when the app is backgrounded and require a fair restart
+- [x] Add TalkBack board semantics and restrained completion haptics
+- [ ] Add optional sound controls and complete accessibility device testing
 - [ ] Add selected-app budget configuration and manufacturer-specific usage-data states
-- [ ] Add missed-day handling, challenge completion, restart, and history screens
-- [ ] Add reminders, notification permission flow, and WorkManager retry behavior
-- [ ] Add local share-card image rendering
+- [x] Add automatic missed-day handling, challenge completion, and restart controls
+- [x] Add a full challenge history and day-by-day record screen
+- [x] Add configurable check-in reminders, notification permission, and check-in-aware WorkManager scheduling
+- [x] Add private per-day reflection notes with Room 1→2 migration and history excerpts
+- [x] Add in-app privacy disclosure and confirmed deletion of all local user data
+- [x] Export and version Room schemas for safer future migrations
+- [x] Add privacy-safe local share-card image rendering and FileProvider sharing
 - [ ] Move all user-facing Android text into localized resources
 
 ## Milestone 3 — Accounts, squads, and trusted competition

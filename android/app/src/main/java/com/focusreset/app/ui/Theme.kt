@@ -1,23 +1,26 @@
 package com.focusreset.app.ui
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-val Ink = Color(0xFF112620)
-val Mint = Color(0xFF35C98B)
-val SoftMint = Color(0xFFD9F8EA)
-val Paper = Color(0xFFF5F7F6)
-val Slate = Color(0xFF52615C)
+val Paper = Color(0xFF0B1728)
+val CardNavy = Color(0xFF182C45)
+val RaisedNavy = Color(0xFF213A58)
+val Ink = Color(0xFFF6F8FC)
+val Mint = Color(0xFF2ED9A3)
+val SoftMint = Color(0xFF123C37)
+val Slate = Color(0xFF94A4B8)
+val Coral = Color(0xFFFF6B6B)
+val Amber = Color(0xFFFFBF5B)
 
-private val LightColors = lightColorScheme(
-    primary = Ink, onPrimary = Color.White, secondary = Mint, onSecondary = Ink,
-    background = Paper, onBackground = Ink, surface = Color.White, onSurface = Ink,
-    surfaceVariant = Color(0xFFE8EFEC), onSurfaceVariant = Slate, outline = Color(0xFF9AACA5).copy(alpha = .7f)
+private val FocusColors = darkColorScheme(
+    primary = Mint, onPrimary = Paper, secondary = Mint, onSecondary = Paper,
+    background = Paper, onBackground = Ink, surface = CardNavy, onSurface = Ink,
+    surfaceVariant = RaisedNavy, onSurfaceVariant = Slate, outline = Color(0xFF58708C)
 )
 
 @Composable
 fun FocusResetTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = LightColors, typography = Typography(), content = content)
+    MaterialTheme(colorScheme = FocusColors, typography = Typography(), content = content)
 }

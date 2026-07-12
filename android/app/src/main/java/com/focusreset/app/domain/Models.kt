@@ -4,8 +4,8 @@ import java.time.LocalDate
 
 enum class ProgramLength(val days: Int) { SEVEN(7), FOURTEEN(14), THIRTY(30) }
 enum class ChallengeStatus { ACTIVE, COMPLETED, ABANDONED }
-enum class DayOutcome { PENDING, PERFECT, RECOVERY }
-enum class GameType { COLOR_CLASH, MEMORY_GRID, SIGNAL_WATCH, RULE_SHIFT, STORY_RECALL }
+enum class DayOutcome { PENDING, PERFECT, MISSED, RECOVERY }
+enum class GameType { GHOST_GRID, FLASH_CROWD, PATH_FINDER, SCHULTE_TABLE, DIGIT_MEMORY }
 enum class Entitlement { FREE, PREMIUM }
 
 data class ChallengeProgram(
@@ -26,6 +26,19 @@ data class ChallengeDay(
 )
 
 data class UsageBudget(val packageName: String, val displayName: String, val minutes: Int)
+data class TrackableApp(val packageName: String, val displayName: String)
+
+object TrackableAppCatalog {
+    val apps = listOf(
+        TrackableApp("com.instagram.android", "Instagram"),
+        TrackableApp("com.zhiliaoapp.musically", "TikTok"),
+        TrackableApp("com.google.android.youtube", "YouTube"),
+        TrackableApp("com.facebook.katana", "Facebook"),
+        TrackableApp("com.snapchat.android", "Snapchat")
+    )
+    val defaultPackages = apps.take(3).map { it.packageName }.toSet()
+    fun label(packageName: String): String = apps.firstOrNull { it.packageName == packageName }?.displayName ?: packageName
+}
 data class DailyGameSeed(val date: LocalDate, val seed: Long, val games: List<GameType>)
 
 data class GameResult(
@@ -62,9 +75,9 @@ data class SubscriptionEntitlement(val tier: Entitlement, val expiresAtEpochMs: 
 
 object ProgramCatalog {
     val programs = listOf(
-        ChallengeProgram("reset_7", "7-Day No-Reels Reset", "A fast reset for short-video habits.", ProgramLength.SEVEN, Entitlement.FREE, 30),
-        ChallengeProgram("builder_14", "14-Day Focus Builder", "Reduce, replace, and build a steadier attention routine.", ProgramLength.FOURTEEN, Entitlement.PREMIUM, 25),
-        ChallengeProgram("reboot_30", "30-Day Attention Reboot", "Observe, reduce, replace, and maintain.", ProgramLength.THIRTY, Entitlement.PREMIUM, 20)
+        ChallengeProgram("reset_7", "7 Days Without Reels", "Check in every day you avoid short-video feeds.", ProgramLength.SEVEN, Entitlement.FREE, 0),
+        ChallengeProgram("builder_14", "14 Days Without Reels", "Build a stronger no-short-video routine.", ProgramLength.FOURTEEN, Entitlement.PREMIUM, 0),
+        ChallengeProgram("reboot_30", "30 Days Without Reels", "Turn a reset into a lasting boundary.", ProgramLength.THIRTY, Entitlement.PREMIUM, 0)
     )
 
     fun days(program: ChallengeProgram): List<ChallengeDay> = (1..program.length.days).map { day ->
@@ -73,6 +86,6 @@ object ProgramCatalog {
             ProgramLength.FOURTEEN -> if (day <= 7) "Reduce" else "Build"
             ProgramLength.THIRTY -> when (day) { in 1..7 -> "Observe"; in 8..14 -> "Reduce"; in 15..21 -> "Replace"; else -> "Maintain" }
         }
-        ChallengeDay(program.id, day, "$phase · Day $day", "Complete today’s Focus Run and stay inside your selected app budget.")
+        ChallengeDay(program.id, day, "$phase · Day $day", "Avoid Reels, Shorts, and TikTok today, then complete your honest check-in.")
     }
 }

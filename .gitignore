@@ -1,0 +1,13 @@
+# Android local and generated files
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/local.properties
+
+# Web generated output
+web/.vinext/
+web/dist/
+
+# Local source references used for license/code audits
+.reference/

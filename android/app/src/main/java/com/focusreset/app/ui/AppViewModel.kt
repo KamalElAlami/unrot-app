@@ -19,6 +19,9 @@ import com.focusreset.app.domain.GameSeeds
 import com.focusreset.app.domain.GameType
 import com.focusreset.app.domain.ProgramCatalog
 import com.focusreset.app.domain.Scoring
+import com.focusreset.app.domain.TrackableAppCatalog
+import com.focusreset.app.domain.UsageSummary
+import com.focusreset.app.notifications.DailyReminderWorker
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class Screen { ONBOARDING, HOME, PROGRAM, RUN, RESULT, PRACTICE, SQUADS, SETTINGS }
+enum class Screen { ONBOARDING, HOME, HISTORY, PROGRAM, RUN, RESULT, PRACTICE, SQUADS, SETTINGS, PRIVACY }
 
 data class AppUiState(
     val initialized: Boolean = false,
@@ -38,6 +41,9 @@ data class AppUiState(
     val challengeDay: Int = 1,
     val completedChallengeDays: Int = 0,
     val challengeStreak: Int = 0,
+    val challengeOutcomes: Map<Int, DayOutcome> = emptyMap(),
+    val challengeFinished: Boolean = false,
+    val challengeNotes: Map<Int, String> = emptyMap(),
     val currentDayOutcome: DayOutcome = DayOutcome.PENDING,
     val recoveryRequired: Boolean = false,
     val recoveryRun: Boolean = false,
@@ -50,7 +56,12 @@ data class AppUiState(
     val practiceUsedMs: Long = 0,
     val usageAccess: Boolean = false,
     val selectedUsageMinutes: Int = 0,
-    val reducedMotion: Boolean = false
+    val trackedApps: Set<String> = TrackableAppCatalog.defaultPackages,
+    val usageMinutesByApp: Map<String, Int> = emptyMap(),
+    val reducedMotion: Boolean = false,
+    val reminderEnabled: Boolean = false,
+    val reminderHour: Int = 21,
+    val reminderMinute: Int = 0
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -65,21 +76,43 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun refresh() = viewModelScope.launch {
         val today = LocalDate.now().toEpochDay()
         val onboardingComplete = preferences.onboardingComplete.first()
-        val activeProgramId = preferences.activeProgram.first()
-        val startedEpochDay = preferences.challengeStartedEpochDay.first()
+        var activeProgramId = preferences.activeProgram.first()
+        var startedEpochDay = preferences.challengeStartedEpochDay.first()
+        if (onboardingComplete && activeProgramId == null) {
+            val starter = ProgramCatalog.programs.first()
+            startedEpochDay = today
+            activeProgramId = starter.id
+            preferences.startProgram(starter.id, today)
+        }
         val activeProgram = ProgramCatalog.programs.firstOrNull { it.id == activeProgramId }
         val challengeDay = if (activeProgram != null && startedEpochDay != null) {
             ChallengeEngine.currentDay(startedEpochDay, today, activeProgram.length)
         } else 1
-        val progress = activeProgram?.let { dao.progressForProgram(it.id) }.orEmpty()
+        var progress = activeProgram?.let { dao.progressForProgram(it.id) }.orEmpty()
+        if (activeProgram != null && startedEpochDay != null) {
+            ChallengeEngine.elapsedMissedDays(startedEpochDay, today, activeProgram.length, progress.map { it.day }.toSet()).forEach { missedDay ->
+                dao.saveProgress(ChallengeProgressEntity(activeProgram.id, missedDay, DayOutcome.MISSED.name, null))
+            }
+            progress = dao.progressForProgram(activeProgram.id)
+        }
         val outcomes = progress.mapNotNull { runCatching { DayOutcome.valueOf(it.outcome) }.getOrNull() }
+        val outcomesByDay = progress.associate { item ->
+            item.day to runCatching { DayOutcome.valueOf(item.outcome) }.getOrDefault(DayOutcome.PENDING)
+        }
+        val notesByDay = progress.mapNotNull { item -> item.note?.takeIf(String::isNotBlank)?.let { item.day to it } }.toMap()
         val currentOutcome = progress.firstOrNull { it.day == challengeDay }
             ?.let { runCatching { DayOutcome.valueOf(it.outcome) }.getOrDefault(DayOutcome.PENDING) }
             ?: DayOutcome.PENDING
-        val minutes = usage.minutesToday(TRACKED_PACKAGES).values.sum()
+        val trackedApps = preferences.trackedApps.first()
+        val usageMinutesByApp = usage.minutesToday(trackedApps)
+        val minutes = UsageSummary.selectedTotal(trackedApps, usageMinutesByApp)
         val dailyCompleted = dao.dailyRun(today) != null
         val practiceUsedMs = dao.practiceDuration(today)
         val reducedMotion = preferences.reducedMotion.first()
+        val reminderEnabled = preferences.reminderEnabled.first()
+        val reminderHour = preferences.reminderHour.first()
+        val reminderMinute = preferences.reminderMinute.first()
+        if (reminderEnabled) DailyReminderWorker.schedule(getApplication(), reminderHour, reminderMinute)
         _state.update {
             it.copy(
                 initialized = true,
@@ -90,22 +123,48 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 challengeDay = challengeDay,
                 completedChallengeDays = ChallengeEngine.completionCount(outcomes),
                 challengeStreak = ChallengeEngine.streak(outcomes),
+                challengeOutcomes = outcomesByDay,
                 currentDayOutcome = currentOutcome,
+                challengeFinished = activeProgram?.let { ChallengeEngine.isComplete(challengeDay, it.length, currentOutcome) } ?: false,
+                challengeNotes = notesByDay,
+                recoveryRequired = currentOutcome == DayOutcome.MISSED,
                 dailyCompleted = dailyCompleted,
                 practiceUsedMs = practiceUsedMs,
                 usageAccess = usage.hasAccess(),
                 selectedUsageMinutes = minutes,
-                reducedMotion = reducedMotion
+                trackedApps = trackedApps,
+                usageMinutesByApp = UsageSummary.selectedBreakdown(trackedApps, usageMinutesByApp),
+                reducedMotion = reducedMotion,
+                reminderEnabled = reminderEnabled,
+                reminderHour = reminderHour,
+                reminderMinute = reminderMinute
             )
         }
     }
 
     fun completeOnboarding() = viewModelScope.launch {
         preferences.setOnboardingComplete(true)
-        _state.update { it.copy(screen = Screen.HOME) }
+        val starter = ProgramCatalog.programs.first()
+        if (preferences.activeProgram.first() == null) {
+            preferences.startProgram(starter.id, LocalDate.now().toEpochDay())
+        }
+        _state.update {
+            it.copy(
+                screen = Screen.HOME,
+                activeProgram = it.activeProgram ?: starter,
+                selectedProgram = starter,
+                challengeDay = 1
+            )
+        }
     }
 
     fun navigate(screen: Screen) { _state.update { it.copy(screen = screen) } }
+
+    fun goBack() {
+        AppNavigation.backDestination(_state.value)?.let { destination ->
+            _state.update { it.copy(screen = destination, results = emptyList(), latestScore = null, recoveryRun = false) }
+        }
+    }
 
     fun selectProgram(program: ChallengeProgram) {
         _state.update { it.copy(selectedProgram = program, screen = Screen.PROGRAM) }
@@ -122,6 +181,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     challengeDay = 1,
                     completedChallengeDays = 0,
                     challengeStreak = 0,
+                    challengeOutcomes = emptyMap(),
+                    challengeFinished = false,
+                    challengeNotes = emptyMap(),
                     currentDayOutcome = DayOutcome.PENDING,
                     screen = Screen.HOME
                 )
@@ -133,6 +195,43 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val value = !_state.value.reducedMotion
         preferences.setReducedMotion(value)
         _state.update { it.copy(reducedMotion = value) }
+    }
+
+    fun setReminderEnabled(enabled: Boolean) = viewModelScope.launch {
+        val current = _state.value
+        preferences.setReminder(enabled, current.reminderHour, current.reminderMinute)
+        if (enabled) DailyReminderWorker.schedule(getApplication(), current.reminderHour, current.reminderMinute)
+        else DailyReminderWorker.cancel(getApplication())
+        _state.update { it.copy(reminderEnabled = enabled) }
+    }
+
+    fun setReminderTime(hour: Int, minute: Int) = viewModelScope.launch {
+        val current = _state.value
+        preferences.setReminder(current.reminderEnabled, hour, minute)
+        if (current.reminderEnabled) DailyReminderWorker.schedule(getApplication(), hour, minute)
+        _state.update { it.copy(reminderHour = hour, reminderMinute = minute) }
+    }
+
+    fun toggleTrackedApp(packageName: String) = viewModelScope.launch {
+        val selected = _state.value.trackedApps.toMutableSet()
+        if (!selected.add(packageName)) selected.remove(packageName)
+        preferences.setTrackedApps(selected)
+        val minutesByApp = usage.minutesToday(selected)
+        _state.update {
+            it.copy(
+                trackedApps = selected,
+                usageMinutesByApp = UsageSummary.selectedBreakdown(selected, minutesByApp),
+                selectedUsageMinutes = UsageSummary.selectedTotal(selected, minutesByApp)
+            )
+        }
+    }
+
+    fun deleteAllLocalData() = viewModelScope.launch {
+        DailyReminderWorker.cancel(getApplication())
+        dao.clearRuns()
+        dao.clearAllProgress()
+        preferences.clearAll()
+        _state.value = LocalDataDeletion.clearedUiState()
     }
 
     fun startRun(practice: Boolean = false) {
@@ -172,19 +271,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun submitCheckIn(metTarget: Boolean) {
         val current = _state.value
-        if (!current.dailyCompleted || current.activeProgram == null || current.currentDayOutcome != DayOutcome.PENDING) return
+        if (current.activeProgram == null || current.currentDayOutcome != DayOutcome.PENDING) return
         if (metTarget) saveOutcome(DayOutcome.PERFECT)
-        else _state.update { it.copy(recoveryRequired = true) }
+        else viewModelScope.launch {
+            saveOutcomeNow(DayOutcome.MISSED)
+            _state.update { it.copy(recoveryRequired = true) }
+        }
     }
 
     fun startRecovery() {
         val current = _state.value
-        if (!current.recoveryRequired || current.activeProgram == null) return
+        if ((!current.recoveryRequired && current.currentDayOutcome != DayOutcome.MISSED) || current.activeProgram == null) return
         val daily = GameSeeds.daily()
         _state.update {
             it.copy(
                 screen = Screen.RUN,
-                seed = daily.copy(seed = daily.seed + 7_919L, games = listOf(GameType.RULE_SHIFT)),
+                seed = daily.copy(seed = daily.seed + 7_919L, games = listOf(GameType.GHOST_GRID)),
                 gameIndex = 0,
                 results = emptyList(),
                 latestScore = null,
@@ -244,27 +346,67 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 programId = program.id,
                 day = current.challengeDay,
                 outcome = outcome.name,
-                completedAt = System.currentTimeMillis()
+                completedAt = System.currentTimeMillis(),
+                note = dao.progress(program.id, current.challengeDay)?.note
             )
         )
         val progress = dao.progressForProgram(program.id)
         val outcomes = progress.mapNotNull { runCatching { DayOutcome.valueOf(it.outcome) }.getOrNull() }
+        val outcomesByDay = progress.associate { item ->
+            item.day to runCatching { DayOutcome.valueOf(item.outcome) }.getOrDefault(DayOutcome.PENDING)
+        }
+        val notesByDay = progress.mapNotNull { item -> item.note?.takeIf(String::isNotBlank)?.let { item.day to it } }.toMap()
         _state.update {
             it.copy(
                 currentDayOutcome = outcome,
                 completedChallengeDays = ChallengeEngine.completionCount(outcomes),
                 challengeStreak = ChallengeEngine.streak(outcomes),
+                challengeOutcomes = outcomesByDay,
+                challengeFinished = ChallengeEngine.isComplete(current.challengeDay, program.length, outcome),
+                challengeNotes = notesByDay,
                 recoveryRequired = false
             )
         }
     }
 
+    fun saveJournalNote(note: String) {
+        val current = _state.value
+        val program = current.activeProgram ?: return
+        if (current.currentDayOutcome == DayOutcome.PENDING) return
+        viewModelScope.launch {
+            val cleaned = note.trim().take(240).ifBlank { null }
+            dao.updateNote(program.id, current.challengeDay, cleaned)
+            _state.update {
+                val notes = it.challengeNotes.toMutableMap()
+                if (cleaned == null) notes.remove(it.challengeDay) else notes[it.challengeDay] = cleaned
+                it.copy(challengeNotes = notes)
+            }
+        }
+    }
+
+    fun restartChallenge() {
+        val program = _state.value.activeProgram ?: return
+        viewModelScope.launch {
+            dao.clearProgress(program.id)
+            preferences.startProgram(program.id, LocalDate.now().toEpochDay())
+            _state.update {
+                it.copy(
+                    challengeDay = 1,
+                    completedChallengeDays = 0,
+                    challengeStreak = 0,
+                    challengeOutcomes = emptyMap(),
+                    currentDayOutcome = DayOutcome.PENDING,
+                    challengeFinished = false,
+                    challengeNotes = emptyMap(),
+                    recoveryRequired = false,
+                    dailyCompleted = false,
+                    screen = Screen.HOME
+                )
+            }
+        }
+    }
+
     companion object {
         private const val PRACTICE_LIMIT_MS = 15 * 60_000L
-        private val TRACKED_PACKAGES = setOf(
-            "com.instagram.android",
-            "com.zhiliaoapp.musically",
-            "com.google.android.youtube"
-        )
     }
 }
