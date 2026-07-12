@@ -5,6 +5,8 @@
  */
 package com.focusreset.app.ui
 
+import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -359,7 +361,18 @@ private enum class DigitPhase { SHOWING, SOLVING, RECALL }
 fun ResultScreen(state: AppUiState, home: () -> Unit, share: (String) -> Unit) {
     val score = state.latestScore ?: return
     val haptic = LocalHapticFeedback.current
-    LaunchedEffect(score.total) { haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
+    LaunchedEffect(score.total, state.hapticsEnabled, state.soundEnabled) {
+        if (state.hapticsEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (state.soundEnabled) {
+            val tone = ToneGenerator(AudioManager.STREAM_MUSIC, 28)
+            try {
+                tone.startTone(ToneGenerator.TONE_PROP_ACK, 120)
+                delay(150)
+            } finally {
+                tone.release()
+            }
+        }
+    }
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text(if (state.recoveryRun) "RECOVERY SAVED" else if (state.practice) "FINITE GAME COMPLETE" else "TODAY’S GAME SCORE", color = Mint, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         Spacer(Modifier.height(18.dp))

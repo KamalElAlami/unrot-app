@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.focusreset.app.FocusResetApplication
+import com.focusreset.app.BuildConfig
 import com.focusreset.app.data.AppPreferences
 import com.focusreset.app.data.ChallengeProgressEntity
 import com.focusreset.app.data.FocusRunEntity
@@ -61,7 +62,9 @@ data class AppUiState(
     val reducedMotion: Boolean = false,
     val reminderEnabled: Boolean = false,
     val reminderHour: Int = 21,
-    val reminderMinute: Int = 0
+    val reminderMinute: Int = 0,
+    val soundEnabled: Boolean = false,
+    val hapticsEnabled: Boolean = true
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
@@ -112,6 +115,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val reminderEnabled = preferences.reminderEnabled.first()
         val reminderHour = preferences.reminderHour.first()
         val reminderMinute = preferences.reminderMinute.first()
+        val soundEnabled = preferences.soundEnabled.first()
+        val hapticsEnabled = preferences.hapticsEnabled.first()
         if (reminderEnabled) DailyReminderWorker.schedule(getApplication(), reminderHour, reminderMinute)
         _state.update {
             it.copy(
@@ -137,7 +142,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 reducedMotion = reducedMotion,
                 reminderEnabled = reminderEnabled,
                 reminderHour = reminderHour,
-                reminderMinute = reminderMinute
+                reminderMinute = reminderMinute,
+                soundEnabled = soundEnabled,
+                hapticsEnabled = hapticsEnabled
             )
         }
     }
@@ -172,8 +179,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun activateSelectedProgram() {
         val program = _state.value.selectedProgram
-        if (program.entitlement != Entitlement.FREE) return
+        if (program.entitlement != Entitlement.FREE && !BuildConfig.DEBUG) return
         viewModelScope.launch {
+            dao.clearProgress(program.id)
             preferences.startProgram(program.id, LocalDate.now().toEpochDay())
             _state.update {
                 it.copy(
@@ -224,6 +232,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 selectedUsageMinutes = UsageSummary.selectedTotal(selected, minutesByApp)
             )
         }
+    }
+
+    fun setSoundEnabled(enabled: Boolean) = viewModelScope.launch {
+        preferences.setSoundEnabled(enabled)
+        _state.update { it.copy(soundEnabled = enabled) }
+    }
+
+    fun setHapticsEnabled(enabled: Boolean) = viewModelScope.launch {
+        preferences.setHapticsEnabled(enabled)
+        _state.update { it.copy(hapticsEnabled = enabled) }
     }
 
     fun deleteAllLocalData() = viewModelScope.launch {

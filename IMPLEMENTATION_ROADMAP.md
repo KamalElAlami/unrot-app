@@ -27,8 +27,9 @@
 - [x] Add finite-game introductions and explain each game’s difficulty progression
 - [x] Protect active rounds when the app is backgrounded and require a fair restart
 - [x] Add TalkBack board semantics and restrained completion haptics
-- [ ] Add optional sound controls and complete accessibility device testing
-- [ ] Add selected-app budget configuration and manufacturer-specific usage-data states
+- [x] Add independent optional completion-sound and haptic controls
+- [ ] Complete TalkBack, large-font, reduced-motion, and OEM accessibility device testing
+- [x] Add selectable local Usage Stats apps and honest disabled/no-data/manufacturer messaging
 - [x] Add automatic missed-day handling, challenge completion, and restart controls
 - [x] Add a full challenge history and day-by-day record screen
 - [x] Add configurable check-in reminders, notification permission, and check-in-aware WorkManager scheduling
@@ -49,7 +50,8 @@
 
 ## Milestone 4 — Premium and launch
 
-- [ ] Implement 14-day and 30-day programs
+- [x] Implement 14-day and 30-day local challenge logic with rolling-week debug previews
+- [ ] Connect premium 14-day/30-day release access to verified billing entitlements
 - [ ] Configure Play Billing, entitlements, restoration, and backend validation
 - [ ] Add premium analytics, history, themes, and future game-pack hooks
 - [ ] Complete privacy policy, terms, support, account deletion, and Play data-safety forms

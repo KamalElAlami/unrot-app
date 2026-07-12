@@ -7,6 +7,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.focusreset.app.domain.*
+import com.focusreset.app.BuildConfig
 
 @Composable
 fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () -> Unit, requestReminderPermission: () -> Unit, share: (String) -> Unit) {
@@ -139,7 +142,7 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
             return@Column
         }
 
-        WeekStrip(program.length.days, state.challengeDay, state.challengeOutcomes) { model.navigate(Screen.HISTORY) }
+        WeekStrip(program.length, state.challengeDay, state.challengeOutcomes) { model.navigate(Screen.HISTORY) }
 
         Card(colors = CardDefaults.cardColors(containerColor = CardNavy), shape = RoundedCornerShape(28.dp)) {
             Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -240,26 +243,32 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
     }
 }
 
-@Composable private fun WeekStrip(length: Int, currentDay: Int, outcomes: Map<Int, DayOutcome>, onClick: () -> Unit) {
+@Composable private fun WeekStrip(length: ProgramLength, currentDay: Int, outcomes: Map<Int, DayOutcome>, onClick: () -> Unit) {
+    val visible = ChallengeCalendar.visibleWeek(currentDay, length)
     Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = CardNavy), shape = RoundedCornerShape(22.dp)) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            (1..minOf(length, 7)).forEach { day ->
-                val outcome = outcomes[day] ?: DayOutcome.PENDING
-                val background = when (outcome) {
-                    DayOutcome.PERFECT -> Mint
-                    DayOutcome.RECOVERY -> Amber
-                    DayOutcome.MISSED -> Coral
-                    DayOutcome.PENDING -> if (day == currentDay) RaisedNavy else Color.Transparent
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("D$day", color = if (day == currentDay) Ink else Slate, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Surface(color = background, shape = CircleShape, modifier = Modifier.size(35.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            when (outcome) {
-                                DayOutcome.PERFECT -> Icon(Icons.Outlined.Check, null, tint = Paper, modifier = Modifier.size(20.dp))
-                                DayOutcome.RECOVERY -> Icon(Icons.Outlined.Refresh, null, tint = Paper, modifier = Modifier.size(19.dp))
-                                DayOutcome.MISSED -> Icon(Icons.Outlined.Close, null, tint = Paper, modifier = Modifier.size(19.dp))
-                                DayOutcome.PENDING -> Text(day.toString(), color = if (day == currentDay) Ink else Slate)
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (length.days > 7) {
+                Text("DAYS ${visible.startDay}–${visible.endDay}", color = Slate, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                visible.days.forEach { day ->
+                    val outcome = outcomes[day] ?: DayOutcome.PENDING
+                    val background = when (outcome) {
+                        DayOutcome.PERFECT -> Mint
+                        DayOutcome.RECOVERY -> Amber
+                        DayOutcome.MISSED -> Coral
+                        DayOutcome.PENDING -> if (day == currentDay) RaisedNavy else Color.Transparent
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("D$day", color = if (day == currentDay) Ink else Slate, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Surface(color = background, shape = CircleShape, modifier = Modifier.size(35.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
+                                when (outcome) {
+                                    DayOutcome.PERFECT -> Icon(Icons.Outlined.Check, null, tint = Paper, modifier = Modifier.size(20.dp))
+                                    DayOutcome.RECOVERY -> Icon(Icons.Outlined.Refresh, null, tint = Paper, modifier = Modifier.size(19.dp))
+                                    DayOutcome.MISSED -> Icon(Icons.Outlined.Close, null, tint = Paper, modifier = Modifier.size(19.dp))
+                                    DayOutcome.PENDING -> Text(day.toString(), color = if (day == currentDay) Ink else Slate)
+                                }
                             }
                         }
                     }
@@ -398,8 +407,19 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent)
             )
         }
-        Button(onClick = model::activateSelectedProgram, enabled = program.entitlement == Entitlement.FREE && state.activeProgram?.id != program.id, modifier = Modifier.fillMaxWidth().height(54.dp)) {
-            Text(if (program.entitlement == Entitlement.PREMIUM) "Premium — coming later" else if (state.activeProgram?.id == program.id) "Challenge active" else "Start challenge")
+        if (program.length.days > 7) {
+            Text("+ ${program.length.days - 7} more daily check-ins · the dashboard follows each week", color = Slate, fontSize = 13.sp)
+        }
+        val canPreview = program.entitlement == Entitlement.FREE || BuildConfig.DEBUG
+        Button(onClick = model::activateSelectedProgram, enabled = canPreview && state.activeProgram?.id != program.id, modifier = Modifier.fillMaxWidth().height(54.dp)) {
+            Text(
+                when {
+                    state.activeProgram?.id == program.id -> "Challenge active"
+                    program.entitlement == Entitlement.PREMIUM && BuildConfig.DEBUG -> "Start beta preview"
+                    program.entitlement == Entitlement.PREMIUM -> "Premium — coming later"
+                    else -> "Start challenge"
+                }
+            )
         }
     }
 }
@@ -459,6 +479,23 @@ fun FocusResetApp(state: AppUiState, model: AppViewModel, openUsageAccess: () ->
         }
         Card(colors = CardDefaults.cardColors(containerColor = CardNavy)) {
             ListItem(headlineContent = { Text("Reduced motion") }, supportingContent = { Text("Restrains nonessential effects") }, trailingContent = { Switch(checked = state.reducedMotion, onCheckedChange = { model.toggleReducedMotion() }) })
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = CardNavy)) {
+            Column {
+                ListItem(
+                    headlineContent = { Text("Completion haptics") },
+                    supportingContent = { Text("One restrained vibration when a finite session ends") },
+                    leadingContent = { Icon(Icons.Outlined.Vibration, null, tint = Mint) },
+                    trailingContent = { Switch(checked = state.hapticsEnabled, onCheckedChange = model::setHapticsEnabled) }
+                )
+                HorizontalDivider(color = RaisedNavy)
+                ListItem(
+                    headlineContent = { Text("Completion sound") },
+                    supportingContent = { Text("Off by default · never used during play") },
+                    leadingContent = { Icon(if (state.soundEnabled) Icons.AutoMirrored.Outlined.VolumeUp else Icons.AutoMirrored.Outlined.VolumeOff, null, tint = Mint) },
+                    trailingContent = { Switch(checked = state.soundEnabled, onCheckedChange = model::setSoundEnabled) }
+                )
+            }
         }
         Card(colors = CardDefaults.cardColors(containerColor = CardNavy)) {
             Column(Modifier.padding(bottom = if (state.reminderEnabled) 14.dp else 0.dp)) {

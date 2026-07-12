@@ -18,6 +18,8 @@ class AppPreferences(private val context: Context) {
         val reminderHour = intPreferencesKey("reminder_hour")
         val reminderMinute = intPreferencesKey("reminder_minute")
         val trackedApps = stringSetPreferencesKey("tracked_apps")
+        val soundEnabled = booleanPreferencesKey("sound_enabled")
+        val hapticsEnabled = booleanPreferencesKey("haptics_enabled")
     }
     val onboardingComplete = context.dataStore.data.map { it[Keys.onboardingComplete] ?: false }
     val reducedMotion = context.dataStore.data.map { it[Keys.reducedMotion] ?: false }
@@ -27,6 +29,8 @@ class AppPreferences(private val context: Context) {
     val reminderHour = context.dataStore.data.map { it[Keys.reminderHour] ?: 21 }
     val reminderMinute = context.dataStore.data.map { it[Keys.reminderMinute] ?: 0 }
     val trackedApps = context.dataStore.data.map { it[Keys.trackedApps] ?: com.focusreset.app.domain.TrackableAppCatalog.defaultPackages }
+    val soundEnabled = context.dataStore.data.map { it[Keys.soundEnabled] ?: false }
+    val hapticsEnabled = context.dataStore.data.map { it[Keys.hapticsEnabled] ?: true }
     suspend fun setOnboardingComplete(value: Boolean) = context.dataStore.edit { it[Keys.onboardingComplete] = value }
     suspend fun setReducedMotion(value: Boolean) = context.dataStore.edit { it[Keys.reducedMotion] = value }
     suspend fun startProgram(id: String, startedEpochDay: Long) = context.dataStore.edit {
@@ -45,4 +49,6 @@ class AppPreferences(private val context: Context) {
     }
     suspend fun clearAll() = context.dataStore.edit { it.clear() }
     suspend fun setTrackedApps(packages: Set<String>) = context.dataStore.edit { it[Keys.trackedApps] = packages }
+    suspend fun setSoundEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.soundEnabled] = enabled }
+    suspend fun setHapticsEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.hapticsEnabled] = enabled }
 }
